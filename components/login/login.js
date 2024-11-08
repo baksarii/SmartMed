@@ -24,13 +24,13 @@ export default function Login({ navigation }) {
       />
       <TouchableOpacity
         style={styles.loginButton}
-        onPress={() => alert("로그인 시도")}
+        onPress={() => navigation.navigate("Home")} // 로그인 시도 시 홈 화면으로 이동
       >
         <Text style={styles.buttonText}>로그인</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.signupButton}
-        onPress={() => navigation.navigate("Signup")} // Signup 화면으로 이동
+        onPress={() => navigation.navigate("Signup")} // 회원가입 화면으로 이동
       >
         <Text style={styles.signupButtonText}>회원가입</Text>
       </TouchableOpacity>
