@@ -1,13 +1,68 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage"; // AsyncStorage import
 
 export default function Login({ navigation }) {
+  const [user_id, setUsername] = useState("");
+  const [passwd, setPassword] = useState(""); // 여전히 passwd 사용
+
+  const handleLogin = async () => {
+    if (!user_id.trim() || !passwd.trim()) {
+      Alert.alert("에러", "아이디와 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    try {
+      console.log("로그인 요청 데이터:", { user_id, passwd });
+      const response = await fetch("http://192.168.45.46:3000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id,
+          passwd, // 여전히 passwd 사용
+        }),
+      });
+
+      console.log("응답 상태:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log("에러 응답 데이터:", errorData);
+        Alert.alert(
+          "로그인 실패",
+          errorData.error || "잘못된 아이디 또는 비밀번호입니다."
+        );
+        return;
+      }
+
+      const data = await response.json();
+      console.log("성공 응답 데이터:", data);
+
+      // 로그인 성공 시 AsyncStorage에 user_id 저장
+      await AsyncStorage.setItem("user_id", user_id.trim());
+      console.log("AsyncStorage에 저장된 user_id:", user_id.trim());
+
+      Alert.alert("로그인 성공", "환영합니다!", [
+        {
+          text: "확인",
+          onPress: () => navigation.navigate("Home"),
+        },
+      ]);
+    } catch (error) {
+      console.error("로그인 요청 오류:", error);
+      Alert.alert("에러", "서버에 연결할 수 없습니다. 다시 시도해주세요.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>로그인</Text>
@@ -15,22 +70,23 @@ export default function Login({ navigation }) {
         style={styles.input}
         placeholder="아이디"
         placeholderTextColor="#888"
+        value={user_id}
+        onChangeText={setUsername}
       />
       <TextInput
         style={styles.input}
         placeholder="비밀번호"
         placeholderTextColor="#888"
         secureTextEntry
+        value={passwd}
+        onChangeText={setPassword}
       />
-      <TouchableOpacity
-        style={styles.loginButton}
-        onPress={() => navigation.navigate("Home")} // 로그인 시도 시 홈 화면으로 이동
-      >
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
         <Text style={styles.buttonText}>로그인</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.signupButton}
-        onPress={() => navigation.navigate("Signup")} // 회원가입 화면으로 이동
+        onPress={() => navigation.navigate("Signup")}
       >
         <Text style={styles.signupButtonText}>회원가입</Text>
       </TouchableOpacity>

@@ -9,28 +9,67 @@ import {
 } from "react-native";
 
 export default function Protector() {
+  const [userId, setUserId] = useState(""); // 사용자 ID
   const [protectorId, setProtectorId] = useState("");
   const [name, setName] = useState("");
 
-  const saveProtectorInfo = () => {
-    if (!protectorId || !name) {
+  const saveProtectorInfo = async () => {
+    if (!userId.trim() || !protectorId.trim() || !name.trim()) {
       Alert.alert("오류", "모든 필드를 입력해주세요.");
       return;
     }
 
-    Alert.alert(
-      "보호자 추가 완료",
-      `보호자 ID: ${protectorId}\n보호자 이름: ${name}`
-    );
+    try {
+      console.log("보호자 데이터 요청:", {
+        user_id: userId.trim(),
+        guardian_id: protectorId.trim(),
+        name: name.trim(),
+      });
+      const response = await fetch(
+        "http://192.168.45.46:3000/api/add-guardian",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: userId.trim(),
+            guardian_id: protectorId.trim(),
+            name: name.trim(),
+          }),
+        }
+      );
 
-    // 저장 후 폼 초기화
-    setProtectorId("");
-    setName("");
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("오류", data.error || "보호자 정보를 저장할 수 없습니다.");
+        return;
+      }
+
+      Alert.alert("성공", "보호자 정보가 성공적으로 저장되었습니다.");
+
+      // 저장 후 폼 초기화
+      setUserId("");
+      setProtectorId("");
+      setName("");
+    } catch (error) {
+      console.error("보호자 정보 저장 오류:", error);
+      Alert.alert("오류", "서버에 연결할 수 없습니다. 다시 시도해주세요.");
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>보호자 정보 설정</Text>
+
+      <Text style={styles.label}>사용자 ID</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="사용자 ID를 입력하세요"
+        value={userId}
+        onChangeText={setUserId}
+      />
 
       <Text style={styles.label}>보호자 ID</Text>
       <TextInput
