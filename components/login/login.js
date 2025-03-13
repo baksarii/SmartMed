@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage"; // AsyncStorage import
+import { BASE_URL } from "../../App"; // App.js에서 BASE_URL 임포트
 
 export default function Login({ navigation }) {
   const [user_id, setUsername] = useState("");
@@ -21,7 +22,7 @@ export default function Login({ navigation }) {
 
     try {
       console.log("로그인 요청 데이터:", { user_id, passwd });
-      const response = await fetch("http://192.168.45.46:3000/api/login", {
+      const response = await fetch(`${BASE_URL}/api/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

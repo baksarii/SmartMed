@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL } from "../../App";
 
 export default function ProtectorList() {
   const [protectorData, setProtectorData] = useState([]);
@@ -13,25 +14,33 @@ export default function ProtectorList() {
   const fetchGuardians = async () => {
     try {
       const userId = await AsyncStorage.getItem("user_id");
-      console.log("AsyncStorage에서 가져온 user_id:", userId); // 디버깅용 로그
+      console.log("AsyncStorage에서 가져온 user_id:", userId); // 값 확인
       if (!userId) {
-        Alert.alert("오류", "사용자 정보를 가져올 수 없습니다.");
+        console.log("user_id가 AsyncStorage에 없음");
+        Alert.alert(
+          "오류",
+          "사용자 정보를 가져올 수 없습니다. 다시 로그인해주세요."
+        );
         setIsLoading(false);
         return;
       }
 
-      const response = await fetch("http://192.168.45.46:3000/api/guardians", {
+      const headers = {
+        "Content-Type": "application/json",
+        "user-id": userId,
+      };
+      console.log("전송할 헤더:", headers); // 헤더 확인
+
+      const response = await fetch(`${BASE_URL}/api/guardians`, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "user-id": userId,
-        },
+        headers,
       });
 
       const data = await response.json();
-      console.log("백엔드 응답 데이터:", data); // 응답 데이터 확인
+      console.log("백엔드 응답 데이터:", data);
 
       if (!response.ok) {
+        console.log("응답 상태 코드:", response.status); // 상태 코드 확인
         Alert.alert("오류", data.error || "보호자 목록을 가져올 수 없습니다.");
         setIsLoading(false);
         return;

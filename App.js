@@ -1,3 +1,4 @@
+export const BASE_URL = "http://165.229.229.132:3000";
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";

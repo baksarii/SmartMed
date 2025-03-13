@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
+import { BASE_URL } from "../../App"; // App.js에서 BASE_URL 임포트
 
 export default function Signup() {
   const [user_id, setUsername] = useState("");
@@ -40,7 +41,7 @@ export default function Signup() {
     });
 
     try {
-      const response = await fetch("http://192.168.45.46:3000/api/signup", {
+      const response = await fetch(`${BASE_URL}/api/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

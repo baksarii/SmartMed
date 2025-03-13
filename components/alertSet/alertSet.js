@@ -2,14 +2,18 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Picker } from "@react-native-picker/picker"; // Picker 임포트
+import { Picker } from "@react-native-picker/picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL } from "../../App"; // App.js에서 BASE_URL 임포트
 
-export default function AlertSet() {
+export default function AlertSet({ navigation }) {
   const [time, setTime] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
@@ -20,9 +24,11 @@ export default function AlertSet() {
   const [startDate, setStartDate] = useState(new Date());
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
 
-  const [duration, setDuration] = useState(7); // 복약 기간
-  const [tempDuration, setTempDuration] = useState(7); // 임시 상태 추가
-  const [showDurationPicker, setShowDurationPicker] = useState(false); // Picker 표시 상태
+  const [duration, setDuration] = useState(7);
+  const [tempDuration, setTempDuration] = useState(7);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
+
+  const [medicineName, setMedicineName] = useState("");
 
   const handleTimeChange = (event, selectedTime) => {
     if (selectedTime) setTempTime(selectedTime);
@@ -48,7 +54,7 @@ export default function AlertSet() {
 
   const calculateEndDate = () => {
     const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + duration - 1); // 복약 시작일 포함해서 계산
+    endDate.setDate(startDate.getDate() + duration - 1);
     return endDate.toLocaleDateString("ko-KR");
   };
 
@@ -57,9 +63,84 @@ export default function AlertSet() {
     setShowDurationPicker(false);
   };
 
+  const handleSave = async () => {
+    const userId = await AsyncStorage.getItem("user_id");
+    if (!userId) {
+      Alert.alert("오류", "사용자 정보를 가져올 수 없습니다.");
+      return;
+    }
+
+    if (
+      !medicineName ||
+      !time ||
+      !startDate ||
+      !duration ||
+      !selectedDays.length
+    ) {
+      Alert.alert("오류", "모든 필드를 입력해주세요.");
+      return;
+    }
+
+    const formattedTime = time.toISOString().split("T")[1].split(".")[0];
+    const data = {
+      user_id: userId,
+      medicine_name: medicineName,
+      time: formattedTime,
+      start_date: startDate.toISOString().split("T")[0],
+      duration,
+      days_of_week: selectedDays.join(","),
+    };
+
+    console.log("Sending Request Data:", JSON.stringify(data));
+    console.log("Request URL:", `${BASE_URL}/api/medications`);
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/medications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      console.log("Response Status:", response.status);
+      console.log("Response Headers:", response.headers);
+
+      const textResponse = await response.text();
+      console.log("Raw Response Body:", textResponse);
+
+      let result;
+      try {
+        result = JSON.parse(textResponse);
+      } catch (jsonError) {
+        console.error("JSON Parse Error:", jsonError);
+        throw new Error(`응답이 JSON 형식이 아님: ${textResponse}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(result.error || "복약 일정을 저장할 수 없습니다.");
+      }
+
+      console.log("Parsed Response:", result);
+      Alert.alert("성공", result.message);
+      navigation.navigate("Home");
+    } catch (error) {
+      console.error("복약 일정 저장 오류:", error);
+      Alert.alert("오류", error.message || "서버에 연결할 수 없습니다.");
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <Text style={styles.title}>알림 설정</Text>
+
+      <Text style={styles.label}>약 이름</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="약 이름을 입력하세요"
+        value={medicineName}
+        onChangeText={setMedicineName}
+      />
 
       <Text style={styles.label}>알림 시간</Text>
       <TouchableOpacity
@@ -153,10 +234,7 @@ export default function AlertSet() {
         알림은 {calculateEndDate()}에 중단됩니다.
       </Text>
 
-      <TouchableOpacity
-        style={styles.saveButton}
-        onPress={() => alert("알림 설정이 저장되었습니다!")}
-      >
+      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
         <Text style={styles.saveButtonText}>저장</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -176,6 +254,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: { fontSize: 18, marginVertical: 10 },
+  input: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    marginBottom: 20,
+    fontSize: 16,
+  },
   timeButton: {
     backgroundColor: "#e0e0e0",
     padding: 15,

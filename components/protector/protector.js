@@ -7,38 +7,43 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL } from "../../App";
 
 export default function Protector() {
-  const [userId, setUserId] = useState(""); // 사용자 ID
   const [protectorId, setProtectorId] = useState("");
   const [name, setName] = useState("");
 
   const saveProtectorInfo = async () => {
-    if (!userId.trim() || !protectorId.trim() || !name.trim()) {
+    if (!protectorId.trim() || !name.trim()) {
       Alert.alert("오류", "모든 필드를 입력해주세요.");
       return;
     }
 
     try {
+      const userId = await AsyncStorage.getItem("user_id"); // 현재 로그인된 user_id 가져오기
+      console.log("AsyncStorage에서 가져온 user_id:", userId);
+      if (!userId) {
+        Alert.alert("오류", "로그인된 사용자 정보를 찾을 수 없습니다.");
+        return;
+      }
+
       console.log("보호자 데이터 요청:", {
-        user_id: userId.trim(),
+        user_id: userId,
         guardian_id: protectorId.trim(),
         name: name.trim(),
       });
-      const response = await fetch(
-        "http://192.168.45.46:3000/api/add-guardian",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: userId.trim(),
-            guardian_id: protectorId.trim(),
-            name: name.trim(),
-          }),
-        }
-      );
+      const response = await fetch(`${BASE_URL}/api/add-guardian`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId, // 현재 로그인된 user_id 사용
+          guardian_id: protectorId.trim(),
+          name: name.trim(),
+        }),
+      });
 
       const data = await response.json();
 
@@ -50,7 +55,6 @@ export default function Protector() {
       Alert.alert("성공", "보호자 정보가 성공적으로 저장되었습니다.");
 
       // 저장 후 폼 초기화
-      setUserId("");
       setProtectorId("");
       setName("");
     } catch (error) {
@@ -62,14 +66,6 @@ export default function Protector() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>보호자 정보 설정</Text>
-
-      <Text style={styles.label}>사용자 ID</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="사용자 ID를 입력하세요"
-        value={userId}
-        onChangeText={setUserId}
-      />
 
       <Text style={styles.label}>보호자 ID</Text>
       <TextInput

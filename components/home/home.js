@@ -1,47 +1,121 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
-
-// 샘플 데이터 (약 복용 일정)
-const initialMedicationData = [
-  { id: "1", name: "아스피린", time: "08:00 AM", status: "대기" },
-  { id: "2", name: "비타민 D", time: "12:00 PM", status: "완료" },
-  { id: "3", name: "오메가3", time: "06:00 PM", status: "실패" },
-];
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL } from "../../App"; // App.js에서 BASE_URL 임포트
 
 export default function Home({ navigation }) {
-  const [medicationData, setMedicationData] = useState(initialMedicationData);
+  const [medicationData, setMedicationData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]); // 오늘의 데이터만 저장
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 복용 상태를 순환하여 변경하는 함수
-  const toggleStatus = (id) => {
-    setMedicationData((prevData) =>
-      prevData.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status:
-                item.status === "대기"
-                  ? "완료"
-                  : item.status === "완료"
-                  ? "실패"
-                  : "대기",
-            }
-          : item
-      )
-    );
+  // 요일 매핑 (한국어와 Date.getDay() 매핑)
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+
+  useEffect(() => {
+    fetchMedications();
+  }, []);
+
+  useEffect(() => {
+    filterTodayMedications(); // 데이터가 변경될 때마다 오늘의 데이터 필터링
+  }, [medicationData]);
+
+  const fetchMedications = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("user_id");
+      if (!userId) {
+        Alert.alert("오류", "사용자 정보를 가져올 수 없습니다.");
+        return;
+      }
+
+      const response = await fetch(
+        `${BASE_URL}/api/medications?user_id=${userId}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("오류", data.error || "복약 일정을 가져올 수 없습니다.");
+        return;
+      }
+
+      setMedicationData(data.data);
+    } catch (error) {
+      console.error("복약 일정 조회 오류:", error);
+      Alert.alert("오류", "서버에 연결할 수 없습니다.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // 복용 일정 목록 렌더링
+  // 오늘의 요일에 맞는 데이터 필터링
+  const filterTodayMedications = () => {
+    const today = new Date();
+    const todayWeekday = weekdays[today.getDay()]; // 오늘의 요일 (예: "목")
+    const filtered = medicationData.filter((item) =>
+      item.days_of_week.split(",").includes(todayWeekday)
+    );
+    setFilteredData(filtered);
+  };
+
+  const toggleStatus = async (id, currentStatus) => {
+    const newStatus =
+      currentStatus === "대기"
+        ? "완료"
+        : currentStatus === "완료"
+        ? "실패"
+        : "대기";
+
+    try {
+      const response = await fetch(
+        `http://165.229.229.132:3000/api/medications/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        Alert.alert("오류", errorData.error || "상태를 변경할 수 없습니다.");
+        return;
+      }
+
+      setMedicationData((prevData) =>
+        prevData.map((item) =>
+          item.id === id ? { ...item, status: newStatus } : item
+        )
+      );
+      Alert.alert("성공", `상태가 "${newStatus}"(으)로 변경되었습니다.`);
+    } catch (error) {
+      console.error("복약 상태 변경 오류:", error);
+      Alert.alert("오류", "서버에 연결할 수 없습니다.");
+    }
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.medicationItem}>
-      <Text style={styles.medicationText}>
-        {item.name} - {item.time}
-      </Text>
+      <View style={styles.medicationDetails}>
+        <Text style={styles.medicationText}>{item.medicine_name}</Text>
+        <Text style={styles.subText}>시간: {item.time}</Text>
+        <Text style={styles.subText}>요일: {item.days_of_week}</Text>
+        <Text style={styles.subText}>
+          기간: {new Date(item.start_date).toLocaleDateString("ko-KR")} ~{" "}
+          {new Date(
+            new Date(item.start_date).setDate(
+              new Date(item.start_date).getDate() + item.duration - 1
+            )
+          ).toLocaleDateString("ko-KR")}
+        </Text>
+      </View>
       <TouchableOpacity
         style={[
           styles.statusButton,
@@ -51,7 +125,7 @@ export default function Home({ navigation }) {
             ? styles.failed
             : styles.pending,
         ]}
-        onPress={() => toggleStatus(item.id)}
+        onPress={() => toggleStatus(item.id, item.status)}
       >
         <Text style={styles.statusButtonText}>
           {item.status === "완료"
@@ -67,27 +141,33 @@ export default function Home({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>오늘의 복용 일정</Text>
-      <FlatList
-        data={medicationData}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-      />
+      {isLoading ? (
+        <Text style={styles.loadingText}>로딩 중...</Text>
+      ) : filteredData.length === 0 ? (
+        <Text style={styles.emptyText}>오늘의 복약 일정이 없습니다.</Text>
+      ) : (
+        <FlatList
+          data={filteredData} // 필터링된 데이터 사용
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          style={styles.list}
+        />
+      )}
       <TouchableOpacity
         style={styles.reminderButton}
-        onPress={() => navigation.navigate("AlertSet")} // AlertSet 화면으로 이동
+        onPress={() => navigation.navigate("AlertSet")}
       >
         <Text style={styles.reminderButtonText}>알림 설정</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.addGuardianButton}
-        onPress={() => navigation.navigate("Protector")} // Protector 화면으로 이동
+        onPress={() => navigation.navigate("Protector")}
       >
         <Text style={styles.addGuardianButtonText}>보호자 추가</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.viewProtectorButton}
-        onPress={() => navigation.navigate("ProtectorList")} // ProtectorList 화면으로 이동
+        onPress={() => navigation.navigate("ProtectorList")}
       >
         <Text style={styles.viewProtectorButtonText}>보호자 목록 보기</Text>
       </TouchableOpacity>
@@ -123,26 +203,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  medicationDetails: {
+    flex: 1,
+  },
   medicationText: {
     fontSize: 18,
+    fontWeight: "bold",
+  },
+  subText: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 2,
   },
   statusButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 5,
+    minWidth: 100,
+    alignItems: "center",
   },
   completed: {
-    backgroundColor: "#28a745", // 녹색 (완료)
+    backgroundColor: "#28a745", // 초록색 (복용 완료)
   },
   failed: {
-    backgroundColor: "#dc3545", // 빨간색 (실패)
+    backgroundColor: "#dc3545", // 빨간색 (복용 실패)
   },
   pending: {
-    backgroundColor: "#ffc107", // 노란색 (대기)
+    backgroundColor: "#ffc107", // 노란색 (복용 대기)
   },
   statusButtonText: {
     color: "#fff",
     fontWeight: "bold",
+    fontSize: 14,
   },
   reminderButton: {
     backgroundColor: "#007bff",
@@ -179,5 +271,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  loadingText: {
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 20,
+  },
+  emptyText: {
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 20,
+    color: "#888",
   },
 });
